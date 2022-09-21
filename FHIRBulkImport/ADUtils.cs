@@ -1,6 +1,7 @@
 ﻿using Microsoft.Azure.Services.AppAuthentication;
 using Newtonsoft.Json.Linq;
 using System;
+using Microsoft.Extensions.Logging;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.IdentityModel.Tokens.Jwt;
@@ -26,10 +27,11 @@ namespace FHIRBulkImport
             return false;
 
         }
-        public static async Task<string> GetOAUTH2BearerToken(string resource, string tenant = null, string clientid = null, string secret = null)
+        public static async Task<string> GetOAUTH2BearerToken(ILogger log, string resource, string tenant = null, string clientid = null, string secret = null)
         {
             if (!string.IsNullOrEmpty(resource) && (string.IsNullOrEmpty(tenant) && string.IsNullOrEmpty(clientid) && string.IsNullOrEmpty(secret)))
             {
+                log.LogTrace($"Hit Managed Service Identity tennant: {tenant} clientid: {clientid} secret: {secret} resource: {resource}");
                 //Assume Managed Service Identity with only resource provided.
                 var azureServiceTokenProvider = new AzureServiceTokenProvider();
                 var _accessToken = await azureServiceTokenProvider.GetAccessTokenAsync(resource);
@@ -39,6 +41,7 @@ namespace FHIRBulkImport
             {
                 using (System.Net.WebClient client = new System.Net.WebClient())
                 {
+                    log.LogTrace($"Hit Get Token tennant: {tenant} clientid: {clientid} secret: {secret} resource: {resource}");
                     byte[] response =
                      client.UploadValues("https://login.microsoftonline.com/" + tenant + "/oauth2/token", new NameValueCollection()
                      {

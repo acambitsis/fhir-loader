@@ -15,7 +15,7 @@ namespace FHIRBulkImport
 {
     public static class FHIRUtils
     {
-        private static ConcurrentDictionary<string,string> _tokens = new ConcurrentDictionary<string, string>();
+        private static ConcurrentDictionary<string, string> _tokens = new ConcurrentDictionary<string, string>();
         private static readonly HttpStatusCode[] httpStatusCodesWorthRetrying = {
             HttpStatusCode.RequestTimeout, // 408
             HttpStatusCode.InternalServerError, // 500
@@ -35,24 +35,24 @@ namespace FHIRBulkImport
             });
         public static async System.Threading.Tasks.Task<FHIRResponse> CallFHIRServer(string path, string body, HttpMethod method, ILogger log)
         {
-                string _bearerToken = null;
-                _tokens.TryGetValue("fhirtoken", out _bearerToken);
-                if (ADUtils.isTokenExpired(_bearerToken))
-                {
-                        log.LogInformation("Bearer Token is expired...Obtaining new bearer token...");
-                        _bearerToken = ADUtils.GetOAUTH2BearerToken(System.Environment.GetEnvironmentVariable("FS-RESOURCE"), System.Environment.GetEnvironmentVariable("FS-TENANT-NAME"),
-                                                                 System.Environment.GetEnvironmentVariable("FS-CLIENT-ID"), System.Environment.GetEnvironmentVariable("FS-SECRET")).GetAwaiter().GetResult();
-                        _tokens.AddOrUpdate("fhirtoken", _bearerToken, (key, oldValue) => _bearerToken);
-                }
-                var retryPolicy = Policy
-                .Handle<HttpRequestException>()
-                .OrResult<HttpResponseMessage>(r => httpStatusCodesWorthRetrying.Contains(r.StatusCode))
-                .WaitAndRetryAsync(Utils.GetIntEnvironmentVariable("FBI-POLLY-MAXRETRIES","3"), retryAttempt =>
-                   TimeSpan.FromMilliseconds(Utils.GetIntEnvironmentVariable("FBI-POLLY-RETRYMS", "500")), (result, timeSpan, retryCount, context) =>
-                   {
-                       log.LogWarning($"FHIR Request failed. Waiting {timeSpan} before next retry. Retry attempt {retryCount}");
-                    }
-                );
+            string _bearerToken = null;
+            _tokens.TryGetValue("fhirtoken", out _bearerToken);
+            if (ADUtils.isTokenExpired(_bearerToken))
+            {
+                log.LogInformation("Bearer Token is expired...Obtaining new bearer token...");
+                _bearerToken = ADUtils.GetOAUTH2BearerToken(log, System.Environment.GetEnvironmentVariable("FS-RESOURCE"), System.Environment.GetEnvironmentVariable("FS-TENANT-NAME"),
+                                                         System.Environment.GetEnvironmentVariable("FS-CLIENT-ID"), System.Environment.GetEnvironmentVariable("FS-SECRET")).GetAwaiter().GetResult();
+                _tokens.AddOrUpdate("fhirtoken", _bearerToken, (key, oldValue) => _bearerToken);
+            }
+            var retryPolicy = Policy
+            .Handle<HttpRequestException>()
+            .OrResult<HttpResponseMessage>(r => httpStatusCodesWorthRetrying.Contains(r.StatusCode))
+            .WaitAndRetryAsync(Utils.GetIntEnvironmentVariable("FBI-POLLY-MAXRETRIES", "3"), retryAttempt =>
+               TimeSpan.FromMilliseconds(Utils.GetIntEnvironmentVariable("FBI-POLLY-RETRYMS", "500")), (result, timeSpan, retryCount, context) =>
+               {
+                   log.LogWarning($"FHIR Request failed. Waiting {timeSpan} before next retry. Retry attempt {retryCount}");
+               }
+            );
             HttpResponseMessage _fhirResponse =
             await retryPolicy.ExecuteAsync(async () =>
             {
@@ -64,7 +64,7 @@ namespace FHIRBulkImport
                 _fhirRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
                 _fhirRequest.Content = new StringContent(body, Encoding.UTF8, "application/json");
                 return await _fhirClient.SendAsync(_fhirRequest);
-                
+
             });
             return await FHIRResponse.FromHttpResponseMessage(_fhirResponse, log);
         }
@@ -88,7 +88,7 @@ namespace FHIRBulkImport
                         string query = (string)tok["request"]["ifNoneExist"];
                         log.LogInformation($"TransformBundleProcess:Loading Resource {resource} with query {query}");
                         var r = FHIRUtils.CallFHIRServer($"{resource}?{query}", "", HttpMethod.Get, log).Result;
-                        if (r.Success && r.Content !=null)
+                        if (r.Success && r.Content != null)
                         {
                             var rs = JObject.Parse(r.Content);
                             if (!rs.IsNullOrEmpty() && ((string)rs["resourceType"]).Equals("Bundle") && !rs["entry"].IsNullOrEmpty())
@@ -144,11 +144,12 @@ namespace FHIRBulkImport
             return requestBody;
         }
     }
-    public class FHIRResponse {
-        public static async Task<FHIRResponse> FromHttpResponseMessage(HttpResponseMessage resp,ILogger log)
+    public class FHIRResponse
+    {
+        public static async Task<FHIRResponse> FromHttpResponseMessage(HttpResponseMessage resp, ILogger log)
         {
             var retVal = new FHIRResponse();
-            
+
             if (resp != null)
             {
                 retVal.Content = await resp.Content.ReadAsStringAsync();
@@ -157,8 +158,8 @@ namespace FHIRBulkImport
                 if (!retVal.Success)
                 {
                     if (string.IsNullOrEmpty(retVal.Content))
-                            retVal.Content = resp.ReasonPhrase;
-                    if (retVal.Status==System.Net.HttpStatusCode.TooManyRequests)
+                        retVal.Content = resp.ReasonPhrase;
+                    if (retVal.Status == System.Net.HttpStatusCode.TooManyRequests)
                     {
                         IEnumerable<string> values;
                         resp.Headers.TryGetValues("x-ms-retry-after-ms", out values);
@@ -174,7 +175,7 @@ namespace FHIRBulkImport
                         retVal.RetryAfterMS = i;
                     }
                 }
-               
+
             }
             return retVal;
         }
@@ -186,7 +187,7 @@ namespace FHIRBulkImport
             RetryAfterMS = 500;
         }
         public string Content { get; set; }
-        public System.Net.HttpStatusCode Status {get;set;}
+        public System.Net.HttpStatusCode Status { get; set; }
         public bool Success { get; set; }
         public int RetryAfterMS { get; set; }
     }
